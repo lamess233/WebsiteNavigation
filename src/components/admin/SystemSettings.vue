@@ -141,7 +141,7 @@ import { ref, onMounted } from 'vue'
 import CustomDialog from './CustomDialog.vue'
 import { useD1API } from '../../apis/useD1API.js'
 
-const { changePassword } = useD1API()
+const { admin: adminAPI, changePassword } = useD1API()
 
 // 密码修改
 const passwordForm = ref({
@@ -231,32 +231,52 @@ const getSystemInfo = () => {
 // 加载当前网站设置
 const loadWebsiteSettings = async () => {
   try {
-    const data = await loadCategoriesFromGitHub()
-    currentTitle.value = data.title || '猫猫导航'
-    websiteTitle.value = currentTitle.value
+    const settings = await adminAPI.getSettings()
+    const titleSetting = settings.find(s => s.key === 'site_title')
+    const searchSetting = settings.find(s => s.key === 'default_search_engine')
 
-    // 加载搜索引擎设置
-    currentSearchEngine.value = data.search || 'bing'
-    searchEngine.value = currentSearchEngine.value
+    if (titleSetting) {
+      currentTitle.value = titleSetting.value
+      websiteTitle.value = titleSetting.value
+    }
+    if (searchSetting) {
+      currentSearchEngine.value = searchSetting.value
+      searchEngine.value = searchSetting.value
+    }
   } catch (error) {
     console.error('加载网站设置失败:', error)
-    currentTitle.value = '猫猫导航'
-    websiteTitle.value = '猫猫导航'
-    currentSearchEngine.value = 'bing'
-    searchEngine.value = 'bing'
+    showDialog('error', '❌ 加载失败', '无法从服务器加载当前网站设置。', [`• 错误详情: ${error.message}`])
   }
 }
 
 // 保存设置
 const saveSettings = async () => {
-  // This function is now a placeholder.
-  // In a real scenario, it would call an API to update settings in the D1 database.
-  showDialog(
-    'success',
-    '🎉 操作成功',
-    '设置已在本地更新。请注意，此更改需要通过API与后端同步才能持久化。',
-    []
-  )
+  titleSaving.value = true
+  searchEngineSaving.value = true
+  try {
+    const settingsToUpdate = {
+      'site_title': websiteTitle.value,
+      'default_search_engine': searchEngine.value
+    }
+    await adminAPI.updateSettings(settingsToUpdate)
+    
+    // 更新当前值
+    currentTitle.value = websiteTitle.value
+    currentSearchEngine.value = searchEngine.value
+
+    showDialog(
+      'success',
+      '🎉 保存成功',
+      '网站设置已成功更新并保存到数据库。',
+      []
+    )
+  } catch (error) {
+    console.error('保存网站设置失败:', error)
+    showDialog('error', '❌ 保存失败', '网站设置保存过程中发生错误。', [`• 错误详情: ${error.message}`])
+  } finally {
+    titleSaving.value = false
+    searchEngineSaving.value = false
+  }
 }
 
 
@@ -302,6 +322,7 @@ const handleChangePassword = async () => {
 onMounted(() => {
   checkEnvConfig()
   getSystemInfo()
+  loadWebsiteSettings()
 })
 </script>
 

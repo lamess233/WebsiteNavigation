@@ -305,7 +305,7 @@ const handleAdminRoutes = async (request, env, pathname) => {
         const id = pathname.split('/').pop();
         const { category_id, name, url, description, icon, order_index } = await request.json();
         await env.DB.prepare('UPDATE sites SET category_id = ?, name = ?, url = ?, description = ?, icon = ?, order_index = ? WHERE id = ?')
-            .bind(category_id, name, url, description, icon, order_index, id)
+            .bind(category_id, name, url, description || '', icon || '', order_index || 0, id)
             .run();
         return jsonResponse({ message: 'Site updated' });
     }
