@@ -13,7 +13,7 @@
           ➕ 添加站点
         </button>
         <button @click="handleSave" :disabled="loading" class="save-btn">
-          {{ loading ? '保存中...' : '💾 保存到GitHub' }}
+          {{ loading ? '保存中...' : '💾 保存更改' }}
         </button>
       </div>
     </div>
@@ -184,7 +184,6 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue'
-import { useGitHubAPI } from '../../apis/useGitHubAPI.js'
 import draggable from 'vuedraggable'
 
 const props = defineProps({
@@ -204,8 +203,6 @@ const props = defineProps({
 
 const emit = defineEmits(['update', 'save', 'upload-icons'])
 
-// GitHub API
-const { uploadBinaryFile } = useGitHubAPI()
 
 // 本地分类数据
 const localCategories = ref([])
@@ -601,55 +598,6 @@ const downloadAndCacheIcon = async (iconUrl, domain) => {
   }
 }
 
-// 上传所有待处理的图标到GitHub（串行上传避免冲突）
-const uploadPendingIconsToGitHub = async () => {
-  const icons = Array.from(pendingIcons.value.values())
-  if (icons.length === 0) {
-    console.log('没有待上传的图标')
-    return
-  }
-
-  console.log(`开始串行上传 ${icons.length} 个图标到GitHub...`)
-
-  const uploadResults = []
-
-  // 串行上传，避免并发冲突
-  for (const icon of icons) {
-    try {
-      const githubPath = `public/sitelogo/${icon.fileName}`
-      const message = `chore: 添加站点图标 ${icon.fileName}`
-
-      console.log(`📤 上传图标: ${icon.fileName}`)
-      await uploadBinaryFile(githubPath, icon.arrayBuffer, message)
-      console.log(`✅ 图标已上传到GitHub: ${githubPath}`)
-
-      // 上传成功后从待处理列表中移除
-      pendingIcons.value.delete(icon.domain)
-      uploadResults.push({ success: true, fileName: icon.fileName })
-    } catch (error) {
-      console.error(`❌ 上传图标 ${icon.fileName} 失败:`, error)
-      uploadResults.push({ success: false, fileName: icon.fileName, error: error.message })
-
-      // 如果是SHA冲突，抛出错误停止上传，否则继续上传其他图标
-      if (error.message.includes('but expected')) {
-        throw new Error(`GitHub文件冲突: ${error.message}`)
-      }
-    }
-  }
-
-  // 检查上传结果
-  const successCount = uploadResults.filter(r => r.success).length
-  const failCount = uploadResults.filter(r => !r.success).length
-
-  console.log(`📊 上传结果: 成功 ${successCount}/${icons.length}`)
-
-  if (failCount > 0) {
-    const failedFiles = uploadResults.filter(r => !r.success).map(r => r.fileName)
-    throw new Error(`部分图标上传失败: ${failedFiles.join(', ')}`)
-  }
-
-  console.log('✅ 所有图标上传完成')
-}
 
 // 获取favicon图标
 const tryFallbackServices = async (domain) => {
@@ -830,22 +778,16 @@ const handleImageError = (event) => {
 
 // 处理保存操作
 const handleSave = async () => {
-  try {
-    // 先上传待处理的图标文件（只有真正下载缓存的图标）
-    if (pendingIcons.value.size > 0) {
-      console.log(`📤 开始上传 ${pendingIcons.value.size} 个缓存的图标...`)
-      await uploadPendingIconsToGitHub()
-      console.log(`✅ 所有图标上传完成`)
-    } else {
-      console.log(`ℹ️ 没有需要上传的图标（可能都使用了外部URL）`)
-    }
-
-    // 然后保存站点数据
-    emit('save')
-  } catch (error) {
-    console.error('保存失败:', error)
-    alert(`保存失败: ${error.message}`)
+  // The icon upload logic to GitHub has been removed as it's obsolete.
+  // The new backend worker handles data persistence.
+  // We just need to emit the save event to the parent component.
+  console.log('触发保存事件，待处理图标数量:', pendingIcons.value.size)
+  if (pendingIcons.value.size > 0) {
+    alert(`检测到 ${pendingIcons.value.size} 个新图标。请注意：自动上传图标到仓库的功能已移除。您需要手动将新图标文件提交到您的代码仓库。`)
+    // 清空待处理图标，避免重复提醒
+    pendingIcons.value.clear()
   }
+  emit('save')
 }
 
 // 监听分类变化

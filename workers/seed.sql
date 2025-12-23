@@ -43,7 +43,7 @@ INSERT INTO sites (id, category_id, name, url, description, icon, order_index) V
 INSERT INTO sites (id, category_id, name, url, description, icon, order_index) VALUES ('site-1752644060499', 'cloud', '怕死云', 'https://www.pasyun.com/', 'ipv6机器', '/sitelogo/www.pasyun.com.ico', 6);
 
 -- 分类: dev-tools
-INSERT INTO sites (id, category_id, name, url, description, icon, order_index) VALUES ('github', 'dev-tools', 'GitHub', 'https://github.com', '代码托管平台', '/sitelogo/github.com.ico', 0);
+INSERT INTO sites (id, category_id, name, url, description, icon, order_index) VALUES ('github-devtools', 'dev-tools', 'GitHub', 'https://github.com', '代码托管平台', '/sitelogo/github.com.ico', 0);
 INSERT INTO sites (id, category_id, name, url, description, icon, order_index) VALUES ('vscode', 'dev-tools', 'VS Code', 'https://code.visualstudio.com', '代码编辑器', '/sitelogo/code.visualstudio.com.ico', 1);
 INSERT INTO sites (id, category_id, name, url, description, icon, order_index) VALUES ('webstorm', 'dev-tools', 'WebStorm', 'https://www.jetbrains.com/webstorm/', '专业前端IDE', '/sitelogo/www.jetbrains.com.ico', 2);
 INSERT INTO sites (id, category_id, name, url, description, icon, order_index) VALUES ('postman', 'dev-tools', 'Postman', 'https://www.postman.com', 'API测试工具', '/sitelogo/www.postman.com.ico', 3);
