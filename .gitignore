@@ -29,3 +29,5 @@ coverage
 *.env
 *.tsbuildinfo
 local_data.js
+
+/plans/
