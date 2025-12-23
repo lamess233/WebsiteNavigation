@@ -274,11 +274,31 @@ const handleAdminRoutes = async (request, env, pathname) => {
     
     if (pathname === '/api/admin/categories' && request.method === 'PUT') {
         const categories = await request.json();
+        console.log('[DEBUG] Updating categories. Received payload:', JSON.stringify(categories));
+
         if (!Array.isArray(categories)) {
             return jsonResponse({ error: 'Request body must be an array of categories.' }, 400);
         }
-        const stmts = categories.map(c => env.DB.prepare('UPDATE categories SET name = ?, icon = ?, order_index = ? WHERE id = ?').bind(c.name, c.icon, c.order_index, c.id));
+
+        const stmts = categories.map(c => {
+            const bound_name = c.name || '';
+            const bound_icon = c.icon || '';
+            const bound_order_index = c.order_index || 0;
+            const bound_id = c.id;
+
+            console.log('[DEBUG] Binding category parameters:', JSON.stringify({
+                id: bound_id,
+                name: bound_name,
+                icon: bound_icon,
+                order_index: bound_order_index
+            }));
+
+            return env.DB.prepare('UPDATE categories SET name = ?, icon = ?, order_index = ? WHERE id = ?')
+                .bind(bound_name, bound_icon, bound_order_index, bound_id);
+        });
+
         await env.DB.batch(stmts);
+        console.log('[DEBUG] Categories updated successfully.');
         return jsonResponse({ message: 'Categories updated' });
     }
     if (pathname.startsWith('/api/admin/categories/') && request.method === 'DELETE') {
