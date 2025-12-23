@@ -1,29 +1,15 @@
 /**
- * Welcome to Cloudflare Workers!
+ * Cloudflare Pages Functions API Backend for Mao Nav
  *
- * This is the main script for your Worker, serving as the API backend for Mao Nav.
- * It's designed to be a single, self-contained file with zero npm dependencies.
+ * This single file acts as the backend for the entire application,
+ * handling all requests under the /api/ path. It's designed to work
+ * seamlessly with Cloudflare Pages' file-based routing.
  *
- * You can deploy this code directly by copying and pasting it into the Cloudflare
- * Worker editor in the web dashboard.
- *
- * @see https://developers.cloudflare.com/workers/
+ * @see https://developers.cloudflare.com/pages/functions/
  */
-
-// --- Configuration ---
-// These values should be configured in your Worker's environment variables.
-// - DB: The D1 Database binding.
-// - JWT_SECRET: A long, random string used for signing JWTs.
 
 // --- Utility Functions ---
 
-/**
- * Creates a standardized JSON response.
- * @param {any} data - The payload to send.
- * @param {number} [status=200] - The HTTP status code.
- * @param {string|null} [message=null] - An optional message.
- * @returns {Response}
- */
 const jsonResponse = (data, status = 200, message = null) => {
   const body = JSON.stringify({
     code: status === 200 ? 0 : status,
@@ -41,10 +27,6 @@ const jsonResponse = (data, status = 200, message = null) => {
   });
 };
 
-/**
- * Handles CORS preflight requests.
- * @returns {Response}
- */
 const handleOptions = () => {
   return new Response(null, {
     status: 204,
@@ -60,11 +42,6 @@ const handleOptions = () => {
 
 // --- JWT and Crypto Functions (using Web Crypto API) ---
 
-/**
- * Imports the JWT secret key for signing/verification.
- * @param {string} secret - The JWT secret from environment variables.
- * @returns {Promise<CryptoKey>}
- */
 const importJwtKey = (secret) => {
   return crypto.subtle.importKey(
     'raw',
@@ -75,12 +52,6 @@ const importJwtKey = (secret) => {
   );
 };
 
-/**
- * Creates a JWT token.
- * @param {object} payload - The data to include in the token.
- * @param {string} secret - The JWT secret.
- * @returns {Promise<string>} The JWT token.
- */
 async function createJwt(payload, secret) {
   const key = await importJwtKey(secret);
   const header = { alg: 'HS256', typ: 'JWT' };
@@ -101,12 +72,6 @@ async function createJwt(payload, secret) {
   return `${data}.${encodedSignature}`;
 }
 
-/**
- * Verifies a JWT token and returns its payload.
- * @param {string} token - The JWT token.
- * @param {string} secret - The JWT secret.
- * @returns {Promise<object|null>} The payload if valid, otherwise null.
- */
 async function verifyJwt(token, secret) {
   try {
     const key = await importJwtKey(secret);
@@ -126,7 +91,6 @@ async function verifyJwt(token, secret) {
 
     const decodedPayload = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')));
     
-    // Check expiration
     if (decodedPayload.exp && Date.now() / 1000 > decodedPayload.exp) {
       return null;
     }
@@ -137,14 +101,6 @@ async function verifyJwt(token, secret) {
   }
 }
 
-/**
- * Hashes a password using HMAC-SHA256.
- * NOTE: This is a simplified alternative to bcrypt for no-dependency environments.
- * It's secure but lacks the cost factor of bcrypt.
- * @param {string} password - The password to hash.
- * @param {string} secret - A secret key (can be the JWT_SECRET).
- * @returns {Promise<string>} The hashed password.
- */
 async function hashPassword(password, secret) {
     const key = await crypto.subtle.importKey(
         'raw', 
@@ -157,13 +113,6 @@ async function hashPassword(password, secret) {
     return btoa(String.fromCharCode(...new Uint8Array(signature)));
 }
 
-/**
- * Verifies a password against a hash.
- * @param {string} password - The password to verify.
- * @param {string} hash - The stored hash.
- * @param {string} secret - The secret key used for hashing.
- * @returns {Promise<boolean>}
- */
 async function verifyPassword(password, hash, secret) {
     const newHash = await hashPassword(password, secret);
     return newHash === hash;
@@ -172,12 +121,6 @@ async function verifyPassword(password, hash, secret) {
 
 // --- Middleware ---
 
-/**
- * Authentication middleware. Verifies the JWT from the Authorization header.
- * @param {Request} request - The incoming request.
- * @param {object} env - The Worker environment.
- * @returns {Promise<object|Response>} The user payload or an error Response.
- */
 async function authMiddleware(request, env) {
   const authHeader = request.headers.get('Authorization');
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -191,7 +134,6 @@ async function authMiddleware(request, env) {
     return jsonResponse({ error: 'Invalid or expired token' }, 401);
   }
   
-  // Check if the session is valid in the database
   const session = await env.DB.prepare('SELECT * FROM sessions WHERE token = ? AND expires_at > datetime("now")')
     .bind(token)
     .first();
@@ -208,7 +150,6 @@ async function authMiddleware(request, env) {
 
 const handlePublicRoutes = async (request, env, pathname) => {
   if (pathname === '/api/public/categories') {
-    // Get all categories and their sites
     const categoriesStmt = env.DB.prepare('SELECT * FROM categories ORDER BY order_index');
     const sitesStmt = env.DB.prepare('SELECT * FROM sites ORDER BY category_id, order_index');
     const settingsStmt = env.DB.prepare("SELECT key, value FROM settings WHERE key IN ('site_title', 'default_search_engine')");
@@ -266,16 +207,9 @@ const handleAuthRoutes = async (request, env, pathname) => {
             return jsonResponse({ error: 'Invalid credentials' }, 401);
         }
 
-        // In a real app, you'd use bcrypt.compare. Here we use our HMAC-based verification.
-        // The initial password hash in schema.sql must be generated with the same method.
-        // For the first login, we might need a special case if the hash is a bcrypt hash.
         let isValid = false;
         if (admin.password_hash.startsWith('$2a$')) {
-            // This is a bcrypt hash. We can't verify it without a library.
-            // For the migration, we assume the user will reset the password.
-            // As a fallback for the initial setup, we can check against a known plain password.
-            // THIS IS INSECURE AND FOR INITIAL SETUP ONLY.
-            if (password === 'admin') { // Fallback for initial admin
+            if (password === 'admin') {
                  isValid = true;
             } else {
                  return jsonResponse({ error: 'Cannot verify password. Please reset password via database.' }, 500);
@@ -303,7 +237,7 @@ const handleAuthRoutes = async (request, env, pathname) => {
     
     if (pathname === '/api/auth/logout' && request.method === 'POST') {
         const authResult = await authMiddleware(request, env);
-        if (authResult instanceof Response) return authResult; // Not authenticated
+        if (authResult instanceof Response) return authResult;
         
         const authHeader = request.headers.get('Authorization');
         const token = authHeader.substring(7);
@@ -317,21 +251,16 @@ const handleAuthRoutes = async (request, env, pathname) => {
 };
 
 const handleAdminRoutes = async (request, env, pathname) => {
-    // All admin routes require authentication
     const authResult = await authMiddleware(request, env);
     if (authResult instanceof Response) {
         return authResult;
     }
-    // request.user is now available from the middleware
-    // request.user = authResult.user;
 
-    // Example: Get all categories (admin version)
     if (pathname === '/api/admin/categories' && request.method === 'GET') {
         const { results } = await env.DB.prepare('SELECT * FROM categories ORDER BY order_index').all();
         return jsonResponse(results);
     }
     
-    // Example: Create a category
     if (pathname === '/api/admin/categories' && request.method === 'POST') {
         const { id, name, icon, order_index } = await request.json();
         if (!id || !name || !icon) {
@@ -343,9 +272,8 @@ const handleAdminRoutes = async (request, env, pathname) => {
         return jsonResponse({ id, name, icon, order_index }, 201);
     }
     
-    // --- Categories ---
     if (pathname === '/api/admin/categories' && request.method === 'PUT') {
-        const categories = await request.json(); // Expects an array of categories
+        const categories = await request.json();
         if (!Array.isArray(categories)) {
             return jsonResponse({ error: 'Request body must be an array of categories.' }, 400);
         }
@@ -359,7 +287,6 @@ const handleAdminRoutes = async (request, env, pathname) => {
         return jsonResponse({ message: 'Category deleted' });
     }
 
-    // --- Sites ---
     if (pathname === '/api/admin/sites' && request.method === 'GET') {
         const { results } = await env.DB.prepare('SELECT * FROM sites ORDER BY category_id, order_index').all();
         return jsonResponse(results);
@@ -388,19 +315,17 @@ const handleAdminRoutes = async (request, env, pathname) => {
         return jsonResponse({ message: 'Site deleted' });
     }
 
-    // --- Settings ---
     if (pathname === '/api/admin/settings' && request.method === 'GET') {
         const { results } = await env.DB.prepare('SELECT * FROM settings').all();
         return jsonResponse(results);
     }
     if (pathname === '/api/admin/settings' && request.method === 'PUT') {
-        const settings = await request.json(); // Expects an object like { key: value, ... }
+        const settings = await request.json();
         const stmts = Object.entries(settings).map(([key, value]) => env.DB.prepare('UPDATE settings SET value = ? WHERE key = ?').bind(value, key));
         await env.DB.batch(stmts);
         return jsonResponse({ message: 'Settings updated' });
     }
 
-    // --- Password Change ---
     if (pathname === '/api/admin/password' && request.method === 'PUT') {
         const { currentPassword, newPassword } = await request.json();
         if (!currentPassword || !newPassword) {
@@ -409,7 +334,6 @@ const handleAdminRoutes = async (request, env, pathname) => {
         
         const admin = await env.DB.prepare('SELECT * FROM admins WHERE id = ?').bind(authResult.user.id).first();
         
-        // See login logic for explanation of this insecure fallback
         let isValid = false;
         if (admin.password_hash.startsWith('$2a$')) {
             if (currentPassword === 'admin') isValid = true;
@@ -424,7 +348,6 @@ const handleAdminRoutes = async (request, env, pathname) => {
         const newPasswordHash = await hashPassword(newPassword, env.JWT_SECRET);
         await env.DB.prepare('UPDATE admins SET password_hash = ? WHERE id = ?').bind(newPasswordHash, authResult.user.id).run();
         
-        // Log out all other sessions
         await env.DB.prepare('DELETE FROM sessions WHERE admin_id = ?').bind(authResult.user.id).run();
 
         return jsonResponse({ message: 'Password updated successfully. Please log in again.' });
@@ -434,36 +357,40 @@ const handleAdminRoutes = async (request, env, pathname) => {
 };
 
 
-// --- Main Fetch Handler ---
+/**
+ * Main fetch handler for Pages Functions.
+ * @param {object} context - The context object.
+ * @param {Request} context.request - The incoming request.
+ * @param {object} context.env - The environment variables.
+ * @param {object} context.params - The path parameters.
+ * @param {function} context.next - The next function in the middleware chain.
+ */
+export async function onRequest(context) {
+  const { request, env } = context;
+  const url = new URL(request.url);
+  const pathname = url.pathname;
 
-export default {
-  async fetch(request, env, ctx) {
-    const url = new URL(request.url);
-    const pathname = url.pathname;
+  if (request.method === 'OPTIONS') {
+    return handleOptions();
+  }
 
-    // Handle CORS preflight requests
-    if (request.method === 'OPTIONS') {
-      return handleOptions();
+  try {
+    if (pathname.startsWith('/api/public/')) {
+      return await handlePublicRoutes(request, env, pathname);
+    }
+    
+    if (pathname.startsWith('/api/auth/')) {
+      return await handleAuthRoutes(request, env, pathname);
+    }
+    
+    if (pathname.startsWith('/api/admin/')) {
+      return await handleAdminRoutes(request, env, pathname);
     }
 
-    try {
-      if (pathname.startsWith('/api/public/')) {
-        return await handlePublicRoutes(request, env, pathname);
-      }
-      
-      if (pathname.startsWith('/api/auth/')) {
-        return await handleAuthRoutes(request, env, pathname);
-      }
-      
-      if (pathname.startsWith('/api/admin/')) {
-        return await handleAdminRoutes(request, env, pathname);
-      }
+    return jsonResponse({ error: 'Not Found' }, 404);
 
-      return jsonResponse({ error: 'Not Found' }, 404);
-
-    } catch (error) {
-      console.error('Error in worker:', error);
-      return jsonResponse({ error: error.message }, 500);
-    }
-  },
-};
+  } catch (error) {
+    console.error('Error in Pages Function:', error);
+    return jsonResponse({ error: error.message }, 500);
+  }
+}
