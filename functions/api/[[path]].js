@@ -303,10 +303,42 @@ const handleAdminRoutes = async (request, env, pathname) => {
     }
     if (pathname.startsWith('/api/admin/sites/') && request.method === 'PUT') {
         const id = pathname.split('/').pop();
-        const { category_id, name, url, description, icon, order_index } = await request.json();
-        await env.DB.prepare('UPDATE sites SET category_id = ?, name = ?, url = ?, description = ?, icon = ?, order_index = ? WHERE id = ?')
-            .bind(category_id, name, url, description || '', icon || '', order_index || 0, id)
-            .run();
+        const payload = await request.json();
+        console.log(`[DEBUG] Updating site ${id}. Received payload:`, JSON.stringify(payload));
+
+        const { category_id, name, url, description, icon, order_index } = payload;
+
+        const bound_category_id = category_id;
+        const bound_name = name;
+        const bound_url = url;
+        const bound_description = description || '';
+        const bound_icon = icon || '';
+        const bound_order_index = order_index || 0;
+        const bound_id = id;
+
+        console.log('[DEBUG] Binding parameters:', JSON.stringify({
+            category_id: bound_category_id,
+            name: bound_name,
+            url: bound_url,
+            description: bound_description,
+            icon: bound_icon,
+            order_index: bound_order_index,
+            id: bound_id
+        }));
+
+        await env.DB.prepare(
+            'UPDATE sites SET category_id = ?, name = ?, url = ?, description = ?, icon = ?, order_index = ? WHERE id = ?'
+        ).bind(
+            bound_category_id,
+            bound_name,
+            bound_url,
+            bound_description,
+            bound_icon,
+            bound_order_index,
+            bound_id
+        ).run();
+
+        console.log(`[DEBUG] Site ${id} updated successfully.`);
         return jsonResponse({ message: 'Site updated' });
     }
     if (pathname.startsWith('/api/admin/sites/') && request.method === 'DELETE') {
