@@ -60,6 +60,44 @@
     </div>
 
 
+    <!-- 安全设置 -->
+    <div class="settings-section">
+      <h3>🔒 安全设置</h3>
+      <div class="security-settings">
+        <div class="setting-group">
+          <label>修改管理员密码:</label>
+          <div class="password-form">
+            <input
+              v-model="passwordForm.currentPassword"
+              type="password"
+              placeholder="当前密码"
+              class="form-input"
+            >
+            <input
+              v-model="passwordForm.newPassword"
+              type="password"
+              placeholder="新密码"
+              class="form-input"
+            >
+            <input
+              v-model="passwordForm.confirmPassword"
+              type="password"
+              placeholder="确认新密码"
+              class="form-input"
+            >
+            <button
+              @click="handleChangePassword"
+              :disabled="passwordSaving"
+              class="save-password-btn"
+            >
+              {{ passwordSaving ? '更新中...' : '🔑 更新密码' }}
+            </button>
+          </div>
+          <p class="setting-description">为了您的账户安全，建议定期修改密码。</p>
+        </div>
+      </div>
+    </div>
+
     <!-- 系统信息 -->
     <div class="settings-section">
       <h3>ℹ️ 系统信息</h3>
@@ -101,8 +139,17 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import CustomDialog from './CustomDialog.vue'
+import { useD1API } from '../../apis/useD1API.js'
 
+const { changePassword } = useD1API()
 
+// 密码修改
+const passwordForm = ref({
+  currentPassword: '',
+  newPassword: '',
+  confirmPassword: ''
+})
+const passwordSaving = ref(false)
 
 // 环境变量配置
 const envConfig = ref({
@@ -213,6 +260,43 @@ const saveSettings = async () => {
 }
 
 
+
+const handleChangePassword = async () => {
+  if (passwordForm.value.newPassword !== passwordForm.value.confirmPassword) {
+    showDialog('error', '❌ 密码不匹配', '您输入的两次新密码不一致，请重新输入。')
+    return
+  }
+  if (!passwordForm.value.currentPassword || !passwordForm.value.newPassword) {
+    showDialog('error', '❌ 输入不完整', '请输入当前密码和新密码。')
+    return
+  }
+
+  passwordSaving.value = true
+  try {
+    await changePassword(passwordForm.value.currentPassword, passwordForm.value.newPassword)
+    showDialog(
+      'success',
+      '🎉 密码更新成功',
+      '您的密码已成功更新。请在下次登录时使用新密码。',
+      []
+    )
+    // 清空表单
+    passwordForm.value = {
+      currentPassword: '',
+      newPassword: '',
+      confirmPassword: ''
+    }
+  } catch (error) {
+    showDialog(
+      'error',
+      '❌ 更新失败',
+      '密码更新过程中发生错误，请重试。',
+      [`• 错误详情: ${error.message}`]
+    )
+  } finally {
+    passwordSaving.value = false
+  }
+}
 
 // 组件挂载时执行
 onMounted(() => {
@@ -695,6 +779,47 @@ onMounted(() => {
 }
 
 .save-logo-btn:disabled {
+  background: #bdc3c7;
+  cursor: not-allowed;
+}
+
+.password-form {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  max-width: 400px;
+}
+
+.form-input {
+  padding: 10px 15px;
+  border: 2px solid #e9ecef;
+  border-radius: 6px;
+  font-size: 14px;
+  transition: border-color 0.3s ease;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: #3498db;
+}
+
+.save-password-btn {
+  padding: 10px 20px;
+  background: #e67e22;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  align-self: flex-start;
+}
+
+.save-password-btn:hover:not(:disabled) {
+  background: #d35400;
+}
+
+.save-password-btn:disabled {
   background: #bdc3c7;
   cursor: not-allowed;
 }
